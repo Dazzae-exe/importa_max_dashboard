@@ -1,8 +1,5 @@
-"use client";
-
 import { DialogTrigger } from "@/components/ui/dialog";
-
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ShoppingCart,
   Plus,
@@ -14,7 +11,6 @@ import {
   User,
   Package,
 } from "lucide-react";
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -68,272 +64,203 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-interface OrderItem {
-  id: string;
-  productName: string;
-  quantity: number;
-  price: number;
-}
-
-interface Order {
-  id: string;
-  orderNumber: string;
-  customerName: string;
-  customerEmail: string;
-  items: OrderItem[];
-  totalAmount: number;
-  status: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
-  shippingAddress: string;
-  orderDate: string;
-  notes?: string;
-}
-
-// Add this new interface for product selection
-interface Product {
-  id: string;
-  name: string;
-  price: number;
-  stock: number;
-}
-
-// Add these mock products (in a real app, you'd fetch these from your products API)
-const availableProducts: Product[] = [
-  { id: "1", name: "Auriculares inalámbricos", price: 199.99, stock: 45 },
-  { id: "2", name: "Reloj inteligente", price: 299.99, stock: 23 },
-  { id: "3", name: "Cafetera", price: 89.99, stock: 15 },
-  { id: "4", name: "Esterilla de yoga", price: 29.99, stock: 67 },
-  { id: "5", name: "Lámpara de escritorio", price: 49.99, stock: 12 },
-];
-
-const initialOrders: Order[] = [
-  {
-    id: "1",
-    orderNumber: "ORD-2024-001",
-    customerName: "Juan Pérez",
-    customerEmail: "juan.perez@email.com",
-    items: [
-      {
-        id: "1",
-        productName: "Auriculares inalámbricos",
-        quantity: 1,
-        price: 199.99,
-      },
-      { id: "2", productName: "Reloj inteligente", quantity: 1, price: 299.99 },
-    ],
-    totalAmount: 499.98,
-    status: "processing",
-    shippingAddress: "Calle Principal 123, Ciudad de México, CDMX 01000",
-    orderDate: "2024-01-15",
-    notes: "El cliente solicitó envío exprés",
-  },
-  {
-    id: "2",
-    orderNumber: "ORD-2024-002",
-    customerName: "Sara Gómez",
-    customerEmail: "sara.g@email.com",
-    items: [
-      { id: "3", productName: "Esterilla de yoga", quantity: 2, price: 29.99 },
-    ],
-    totalAmount: 59.98,
-    status: "shipped",
-    shippingAddress: "Av. Roble 456, Monterrey, NL 64000",
-    orderDate: "2024-01-14",
-  },
-  {
-    id: "3",
-    orderNumber: "ORD-2024-003",
-    customerName: "Miguel Díaz",
-    customerEmail: "miguel.diaz@email.com",
-    items: [
-      { id: "4", productName: "Cafetera", quantity: 1, price: 89.99 },
-      {
-        id: "5",
-        productName: "Lámpara de escritorio",
-        quantity: 1,
-        price: 49.99,
-      },
-    ],
-    totalAmount: 139.98,
-    status: "delivered",
-    shippingAddress: "Calle Pino 789, Guadalajara, JAL 44100",
-    orderDate: "2024-01-12",
-  },
-  {
-    id: "4",
-    orderNumber: "ORD-2024-004",
-    customerName: "Emilia Wilson",
-    customerEmail: "emilia.w@email.com",
-    items: [
-      { id: "6", productName: "Reloj inteligente", quantity: 1, price: 299.99 },
-    ],
-    totalAmount: 299.99,
-    status: "pending",
-    shippingAddress: "Calle Olmo 321, Mérida, YUC 97000",
-    orderDate: "2024-01-16",
-    notes: "Solicitó envoltura para regalo",
-  },
-  {
-    id: "5",
-    orderNumber: "ORD-2024-005",
-    customerName: "Roberto Moreno",
-    customerEmail: "roberto.moreno@email.com",
-    items: [
-      {
-        id: "7",
-        productName: "Auriculares inalámbricos",
-        quantity: 2,
-        price: 199.99,
-      },
-    ],
-    totalAmount: 399.98,
-    status: "cancelled",
-    shippingAddress: "Av. Maple 654, Monterrey, NL 64000",
-    orderDate: "2024-01-10",
-    notes: "El cliente solicitó cancelación por cambio de opinión",
-  },
-];
+import {
+  getOrders,
+  getProducts,
+  addOrders,
+  updateOrder,
+  deleteOrder,
+} from "@/lib/supabase/utils";
+import type { OrderProduct, Orders } from "@/lib/types/OrderTypes";
 
 export default function OrdersPage() {
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
+  const [orders, setOrders] = useState<Orders[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [formData, setFormData] = useState({
+  const [selectedOrder, setSelectedOrder] = useState<Orders | null>(null);
+  const [formData, setFormData] = useState<{
+    customerName: string;
+    customerEmail: string;
+    totalAmount: string;
+    status: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
+    shippingAddress: string;
+    shippingMethod: string;
+    notes: string;
+    orderBy: string;
+  }>({
     customerName: "",
     customerEmail: "",
     totalAmount: "",
-    status: "pending" as const,
+    status: "pending",
     shippingAddress: "",
+    shippingMethod: "",
     notes: "",
+    orderBy: ""
   });
 
-  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  const [selectedProductId, setSelectedProductId] = useState("");
+  const [orderItems, setOrderItems] = useState<OrderProduct[]>([]);
+  const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [selectedQuantity, setSelectedQuantity] = useState(1);
+  const [availableProducts, setAvailableProducts] = useState<OrderProduct[]>([]);
+
+  const ordersData = getOrders();
+  const productData = getProducts();
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const data = await ordersData;
+      const products = await productData;
+      console.log(data);
+      setOrders(data);
+      setAvailableProducts(products);
+    };
+    fetchData();
+  }, []);
 
   const filteredOrders = orders.filter(
     (order) =>
-      order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.customerEmail.toLowerCase().includes(searchTerm.toLowerCase()),
+      order.order_ref.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.order_for.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.order_status.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
-  const addOrderItem = () => {
+  const addOrderItem = async () => {
     if (!selectedProductId) return;
 
-    const product = availableProducts.find((p) => p.id === selectedProductId);
+    const product = availableProducts.find(
+      (p) => String(p.id) === selectedProductId
+    );
     if (!product) return;
 
     const existingItemIndex = orderItems.findIndex(
-      (item) => item.productName === product.name,
+      (item) => item.product_name === product.product_name
     );
 
     if (existingItemIndex >= 0) {
-      // Update existing item quantity
       const updatedItems = [...orderItems];
-      updatedItems[existingItemIndex].quantity += selectedQuantity;
+      updatedItems[existingItemIndex].product_quantity += selectedQuantity;
       setOrderItems(updatedItems);
+      updateTotalAmount(updatedItems);
     } else {
-      // Add new item
-      const newItem: OrderItem = {
-        id: Date.now().toString(),
-        productName: product.name,
-        quantity: selectedQuantity,
-        price: product.price,
+      const newItem: OrderProduct = {
+        id: product.id,
+        product_name: product.product_name,
+        product_quantity: selectedQuantity,
+        product_price: product.product_price,
       };
-      setOrderItems([...orderItems, newItem]);
+      const newOrderItems = [...orderItems, newItem];
+      setOrderItems(newOrderItems);
+      updateTotalAmount(newOrderItems);
     }
 
     setSelectedProductId("");
     setSelectedQuantity(1);
-    updateTotalAmount([...orderItems]);
   };
 
-  const removeOrderItem = (itemId: string) => {
+  const removeOrderItem = (itemId: number) => {
     const updatedItems = orderItems.filter((item) => item.id !== itemId);
     setOrderItems(updatedItems);
     updateTotalAmount(updatedItems);
   };
 
-  const updateTotalAmount = (items: OrderItem[]) => {
+  const updateTotalAmount = (items: OrderProduct[]) => {
     const total = items.reduce(
-      (sum, item) => sum + item.price * item.quantity,
+      (sum, item) => sum + item.product_price * item.product_quantity,
       0,
     );
     setFormData({ ...formData, totalAmount: total.toString() });
   };
 
-  const handleAddOrder = () => {
-    const newOrder: Order = {
-      id: Date.now().toString(),
-      orderNumber: `ORD-2024-${String(orders.length + 1).padStart(3, "0")}`,
-      customerName: formData.customerName,
-      customerEmail: formData.customerEmail,
-      items: orderItems, // Use the selected items
-      totalAmount: Number.parseFloat(formData.totalAmount),
-      status: formData.status,
-      shippingAddress: formData.shippingAddress,
-      orderDate: new Date().toISOString().split("T")[0],
-      notes: formData.notes,
+  // Cambia handleAddOrder para usar Supabase
+  const handleAddOrder = async () => {
+    const newOrder: Orders = {
+      order_ref: `ORD-2025-${String(orders.length + 1).padStart(3, "0")}`,
+      order_for: formData.customerName,
+      order_customerEmail: formData.customerEmail,
+      order_products: orderItems,
+      order_totalPrice: Number.parseFloat(formData.totalAmount),
+      order_status: formData.status,
+      order_address: formData.shippingAddress,
+      order_shippingDate: new Date().toISOString().split("T")[0],
+      order_shippingMethod: formData.shippingAddress,
+      order_notes: formData.notes,
+      order_by: formData.orderBy,
     };
-    setOrders([...orders, newOrder]);
-    setIsAddDialogOpen(false);
-    resetForm();
+    try {
+      await addOrders(newOrder);
+      const updatedOrders = await getOrders();
+      setOrders(updatedOrders);
+      setIsAddDialogOpen(false);
+      resetForm();
+    } catch (error) {
+      console.error("Error adding order:", error);
+    }
   };
 
-  const handleEditOrder = () => {
+  // Cambia handleEditOrder para usar Supabase
+  const handleEditOrder = async () => {
     if (!selectedOrder) return;
-
-    const updatedOrders = orders.map((order) =>
-      order.id === selectedOrder.id
-        ? {
-            ...order,
-            customerName: formData.customerName,
-            customerEmail: formData.customerEmail,
-            totalAmount: Number.parseFloat(formData.totalAmount),
-            status: formData.status,
-            shippingAddress: formData.shippingAddress,
-            notes: formData.notes,
-          }
-        : order,
-    );
-    setOrders(updatedOrders);
-    setIsEditDialogOpen(false);
-    resetForm();
+    try {
+      const updates: Partial<Orders> = {
+        order_for: formData.customerName,
+        order_customerEmail: formData.customerEmail,
+        order_products: orderItems,
+        order_totalPrice: Number.parseFloat(formData.totalAmount),
+        order_status: formData.status,
+        order_address: formData.shippingAddress,
+        order_shippingMethod: formData.shippingAddress,
+        order_notes: formData.notes,
+        order_by: formData.orderBy,
+      };
+      await updateOrder(selectedOrder.id! as number, updates);
+      const updatedOrders = await getOrders();
+      setOrders(updatedOrders);
+      setIsEditDialogOpen(false);
+      resetForm();
+    } catch (error) {
+      console.error("Error updating order:", error);
+    }
   };
 
-  const handleDeleteOrder = () => {
+  // Cambia handleDeleteOrder para usar Supabase
+  const handleDeleteOrder = async () => {
     if (!selectedOrder) return;
-
-    setOrders(orders.filter((order) => order.id !== selectedOrder.id));
-    setIsDeleteDialogOpen(false);
-    setSelectedOrder(null);
+    try {
+      await deleteOrder(selectedOrder.id! as number);
+      const updatedOrders = await getOrders();
+      setOrders(updatedOrders);
+      setIsDeleteDialogOpen(false);
+      setSelectedOrder(null);
+    } catch (error) {
+      console.error("Error deleting order:", error);
+    }
   };
 
-  const openEditDialog = (order: Order) => {
+  const openEditDialog = (order: Orders) => {
     setSelectedOrder(order);
-    setOrderItems(order.items);
+    setOrderItems(order.order_products);
     setFormData({
-      customerName: order.customerName,
-      customerEmail: order.customerEmail,
-      totalAmount: order.totalAmount.toString(),
-      status: order.status,
-      shippingAddress: order.shippingAddress,
-      notes: order.notes || "",
+      customerName: order.order_for,
+      customerEmail: order.order_customerEmail,
+      totalAmount: order.order_totalPrice.toString(),
+      status: order.order_status as "pending" | "processing" | "shipped" | "delivered" | "cancelled",
+      shippingAddress: order.order_address,
+      shippingMethod: order.order_shippingMethod || "",
+      notes: order.order_notes || "",
+      orderBy: order.order_by || "",
     });
     setIsEditDialogOpen(true);
   };
 
-  const openViewDialog = (order: Order) => {
+  const openViewDialog = (order: Orders) => {
     setSelectedOrder(order);
     setIsViewDialogOpen(true);
   };
 
-  const openDeleteDialog = (order: Order) => {
+  const openDeleteDialog = (order: Orders) => {
     setSelectedOrder(order);
     setIsDeleteDialogOpen(true);
   };
@@ -345,7 +272,9 @@ export default function OrdersPage() {
       totalAmount: "",
       status: "pending",
       shippingAddress: "",
+      shippingMethod: "",
       notes: "",
+      orderBy: ""
     });
     setOrderItems([]);
     setSelectedProductId("");
@@ -353,27 +282,27 @@ export default function OrdersPage() {
     setSelectedOrder(null);
   };
 
-  const getStatusBadge = (status: Order["status"]) => {
+  const getStatusBadge = (status: Orders["order_status"]) => {
     switch (status) {
       case "pending":
-        return <Badge variant="secondary">Pending</Badge>;
+        return <Badge variant="secondary">Pendiente</Badge>;
       case "processing":
-        return <Badge className="bg-blue-100 text-blue-800">Processing</Badge>;
+        return <Badge className="bg-blue-100 text-blue-800">En proceso</Badge>;
       case "shipped":
-        return <Badge className="bg-yellow-100 text-yellow-800">Shipped</Badge>;
+        return <Badge className="bg-yellow-100 text-yellow-800">Enviado</Badge>;
       case "delivered":
-        return <Badge className="bg-green-100 text-green-800">Delivered</Badge>;
+        return <Badge className="bg-green-100 text-green-800">Entregado</Badge>;
       case "cancelled":
-        return <Badge variant="destructive">Cancelled</Badge>;
+        return <Badge variant="destructive">Cancelado</Badge>;
       default:
-        return <Badge variant="secondary">Unknown</Badge>;
+        return <Badge variant="secondary">Desconocido</Badge>;
     }
   };
 
   const getTotalRevenue = () => {
     return orders
-      .filter((order) => order.status !== "cancelled")
-      .reduce((sum, order) => sum + order.totalAmount, 0);
+      .filter((order) => order.order_status !== "cancelled")
+      .reduce((sum, order) => sum + order.order_totalPrice, 0);
   };
 
   return (
@@ -462,8 +391,8 @@ export default function OrdersPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {availableProducts.map((product) => (
-                          <SelectItem key={product.id} value={product.id}>
-                            {product.name} - ${product.price.toFixed(2)}
+                          <SelectItem key={product.id} value={String(product.id ?? "")}>
+                            {product.product_name} - ${product.product_price.toFixed(2)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -503,18 +432,18 @@ export default function OrdersPage() {
                           <div className="flex items-center gap-2">
                             <Package className="h-4 w-4 text-muted-foreground" />
                             <span className="font-medium">
-                              {item.productName}
+                              {item.product_name}
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-sm">
-                              {item.quantity}x ${item.price.toFixed(2)} = $
-                              {(item.quantity * item.price).toFixed(2)}
+                              {item.product_quantity}x ${item.product_price.toFixed(2)} = $
+                              {(item.product_quantity * item.product_price).toFixed(2)}
                             </span>
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => removeOrderItem(item.id)}
+                              onClick={() => removeOrderItem(item.id as number)}
                               className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
                             >
                               <Trash2 className="h-3 w-3" />
@@ -615,7 +544,7 @@ export default function OrdersPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {orders.filter((o) => o.status === "pending").length}
+              {orders.filter((o) => o.order_status === "pending").length}
             </div>
           </CardContent>
         </Card>
@@ -628,7 +557,7 @@ export default function OrdersPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {orders.filter((o) => o.status === "delivered").length}
+              {orders.filter((o) => o.order_status === "delivered").length}
             </div>
           </CardContent>
         </Card>
@@ -641,7 +570,7 @@ export default function OrdersPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ${getTotalRevenue().toFixed(2)}
+              ${getTotalRevenue()}
             </div>
           </CardContent>
         </Card>
@@ -687,28 +616,28 @@ export default function OrdersPage() {
               {filteredOrders.map((order) => (
                 <TableRow key={order.id}>
                   <TableCell>
-                    <div className="font-medium">{order.orderNumber}</div>
+                    <div className="font-medium">{order.order_ref}</div>
                   </TableCell>
                   <TableCell>
                     <div>
-                      <div className="font-medium">{order.customerName}</div>
+                      <div className="font-medium">{order.order_for}</div>
                       <div className="text-sm text-muted-foreground">
-                        {order.customerEmail}
+                        {order.order_customerEmail}
                       </div>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="text-sm">
-                      {order.items.length > 0 ? (
+                      {order.order_products.length > 0 ? (
                         <>
-                          {order.items.slice(0, 2).map((item) => (
+                          {order.order_products.slice(0, 2).map((item) => (
                             <div key={item.id}>
-                              {item.quantity}x {item.productName}
+                              {item.product_quantity}x {item.product_name}
                             </div>
                           ))}
-                          {order.items.length > 2 && (
+                          {order.order_products.length > 2 && (
                             <div className="text-muted-foreground">
-                              +{order.items.length - 2} más
+                              +{order.order_products.length - 2} más
                             </div>
                           )}
                         </>
@@ -719,9 +648,15 @@ export default function OrdersPage() {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell>${order.totalAmount.toFixed(2)}</TableCell>
-                  <TableCell>{getStatusBadge(order.status)}</TableCell>
-                  <TableCell>{order.orderDate}</TableCell>
+                  <TableCell>${order.order_totalPrice}</TableCell>
+                  <TableCell>{getStatusBadge(order.order_status)}</TableCell>
+                  <TableCell>
+                    {order.created_at
+                      ? order.created_at instanceof Date
+                        ? order.created_at.toLocaleDateString()
+                        : order.created_at
+                      : ""}
+                  </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -764,7 +699,7 @@ export default function OrdersPage() {
           <DialogHeader>
             <DialogTitle>Detalles de la orden</DialogTitle>
             <DialogDescription>
-              Información completa para {selectedOrder?.orderNumber}
+              Información completa para {selectedOrder?.order_ref}
             </DialogDescription>
           </DialogHeader>
           {selectedOrder && (
@@ -777,10 +712,10 @@ export default function OrdersPage() {
                   <div className="mt-1 space-y-1">
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-muted-foreground" />
-                      <span>{selectedOrder.customerName}</span>
+                      <span>{selectedOrder.order_for}</span>
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      {selectedOrder.customerEmail}
+                      {selectedOrder.order_customerEmail}
                     </div>
                   </div>
                 </div>
@@ -789,9 +724,19 @@ export default function OrdersPage() {
                     Información de la orden
                   </Label>
                   <div className="mt-1 space-y-1">
-                    <div># Orden: {selectedOrder.orderNumber}</div>
-                    <div>Fecha: {selectedOrder.orderDate}</div>
-                    <div>Estado: {getStatusBadge(selectedOrder.status)}</div>
+                    <div># Orden: {selectedOrder.order_ref}</div>
+                    {/* Ignore eslint */}
+                    <div>
+                      Fecha: {selectedOrder?.created_at
+                        ? (selectedOrder.created_at instanceof Date
+                            ? selectedOrder.created_at.toLocaleDateString()
+                            : typeof selectedOrder.created_at === "string"
+                              ? selectedOrder.created_at
+                              : "")
+                        : ""}
+                    </div>
+                    
+                    <div>Estado: {getStatusBadge(selectedOrder.order_status)}</div>
                   </div>
                 </div>
               </div>
@@ -800,25 +745,25 @@ export default function OrdersPage() {
                   Dirección de envío
                 </Label>
                 <div className="mt-1 text-sm">
-                  {selectedOrder.shippingAddress}
+                  {selectedOrder.order_address}
                 </div>
               </div>
               <div>
                 <Label className="text-sm font-medium">Productos</Label>
                 <div className="mt-2 space-y-2">
-                  {selectedOrder.items.length > 0 ? (
-                    selectedOrder.items.map((item) => (
+                  {selectedOrder.order_products.length > 0 ? (
+                    selectedOrder.order_products.map((item) => (
                       <div
                         key={item.id}
                         className="flex items-center justify-between p-2 border rounded"
                       >
                         <div className="flex items-center gap-2">
                           <Package className="h-4 w-4 text-muted-foreground" />
-                          <span>{item.productName}</span>
+                          <span>{item.product_name}</span>
                         </div>
                         <div className="text-sm">
-                          {item.quantity}x ${item.price.toFixed(2)} = $
-                          {(item.quantity * item.price).toFixed(2)}
+                          {item.product_quantity}x ${item.product_price} = $
+                          {(item.product_quantity * item.product_price)}
                         </div>
                       </div>
                     ))
@@ -832,14 +777,14 @@ export default function OrdersPage() {
               <div className="flex justify-between items-center pt-2 border-t">
                 <span className="font-medium">Total:</span>
                 <span className="text-lg font-bold">
-                  ${selectedOrder.totalAmount.toFixed(2)}
+                  ${selectedOrder.order_totalPrice}
                 </span>
               </div>
-              {selectedOrder.notes && (
+              {selectedOrder.order_notes && (
                 <div>
                   <Label className="text-sm font-medium">Notas</Label>
                   <div className="mt-1 text-sm text-muted-foreground">
-                    {selectedOrder.notes}
+                    {selectedOrder.order_notes}
                   </div>
                 </div>
               )}
@@ -913,8 +858,8 @@ export default function OrdersPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {availableProducts.map((product) => (
-                        <SelectItem key={product.id} value={product.id}>
-                          {product.name} - ${product.price.toFixed(2)}
+                        <SelectItem key={product.id} value={String(product.id ?? "")}>
+                          {product.product_name} - ${product.product_price.toFixed(2)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -949,18 +894,18 @@ export default function OrdersPage() {
                         <div className="flex items-center gap-2">
                           <Package className="h-4 w-4 text-muted-foreground" />
                           <span className="font-medium">
-                            {item.productName}
+                            {item.product_name}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-sm">
-                            {item.quantity}x ${item.price.toFixed(2)} = $
-                            {(item.quantity * item.price).toFixed(2)}
+                            {item.product_quantity}x ${item.product_price.toFixed(2)} = $
+                            {(item.product_quantity * item.product_price).toFixed(2)}
                           </span>
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => removeOrderItem(item.id)}
+                            onClick={() => removeOrderItem(item.id as number)}
                             className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
                           >
                             <Trash2 className="h-3 w-3" />
@@ -1046,7 +991,7 @@ export default function OrdersPage() {
             <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
             <AlertDialogDescription>
               Esta acción no se puede deshacer. Esto eliminará permanentemente
-              la orden "{selectedOrder?.orderNumber}" y todos sus datos
+              la orden "{selectedOrder?.order_ref}" y todos sus datos
               asociados.
             </AlertDialogDescription>
           </AlertDialogHeader>
